@@ -12,7 +12,8 @@ const PaymentSchema = new mongoose.Schema({
     },
     oid: {
         type: String,
-        required: true
+        required: true,
+        unique: true
     },
     name: {
         type: String

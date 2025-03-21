@@ -1,7 +1,7 @@
 import NextAuth from 'next-auth';
 import GitHubProvider from 'next-auth/providers/github';
 import User from '@/models/User';
-import { connectDB } from "@/lib/mongodb"; // Import only connectDB
+import { connectDB } from "@/lib/mongodb";
 
 export const authoptions = NextAuth({
   providers: [
@@ -12,16 +12,20 @@ export const authoptions = NextAuth({
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
+      console.log("GitHub Profile:", profile); // Debugging
+
       if (account.provider === 'github') {
-        await connectDB(); // Ensure DB connection
+        await connectDB();
 
         let currentUser = await User.findOne({ email: profile.email });
 
         if (!currentUser) {
           currentUser = await User.create({
-            name: profile.name,
+            name: profile.name || profile.login, // Use profile.login if name is missing
             email: profile.email,
-            username: profile.name.replace(/\s+/g, '').toLowerCase(),
+            username: profile.name 
+              ? profile.name.replace(/\s+/g, '').toLowerCase() 
+              : profile.login.toLowerCase(),
             profilepic: profile.image || profile.avatar_url || '',
             coverpic: '',
             createdAt: new Date(),
@@ -35,6 +39,8 @@ export const authoptions = NextAuth({
     },
 
     async session({ session, token }) {
+      if (!token.email) return session;
+
       await connectDB();
       const dbuser = await User.findOne({ email: token.email });
 

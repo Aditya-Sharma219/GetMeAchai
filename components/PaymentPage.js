@@ -4,16 +4,48 @@ import Script from "next/script";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { initiate } from "@/actions/useractions";
+import { initiate,fetchpayments,fetchuser } from "@/actions/useractions";
 
 
 const PaymentPage = ({ username }) => {
     const searchParams = useSearchParams();
+    const { data: session } = useSession();
     // const username = searchParams.get("username") || "User"; // Ensure username is defined
+
+    const [currentuser, setCurrentuser] = useState([]);
+    const [payments, setPayments] = useState([]);
+
 
     function capitalize(string) {
         return string.charAt(0).toUpperCase() + string.slice(1);
     }
+
+    useEffect(() => {
+        if (session?.user?.name) {
+            getData();
+        }
+    }, [session]);
+    
+
+    const getData = async () => {
+        if (!session?.user?.name) {
+            console.error("Session user name is not defined");
+            return;
+        }
+        
+        try {
+            let u = await fetchuser(session.user.name);
+            setCurrentuser(u || []); // Ensure it doesn't remain undefined
+            
+            let dbpayments = await fetchpayments(username || "defaultUser");
+            setPayments(dbpayments || []);
+            
+            console.log(u, session.user.name, dbpayments);
+        } catch (error) {
+            console.error("Error fetching data:", error);
+        }
+    };
+    
 
     const [paymentform, setPaymentform] = useState({
         name: username,
@@ -31,20 +63,19 @@ const PaymentPage = ({ username }) => {
 
     const pay = async (amount) => {
         if (typeof window !== "undefined" && window.Razorpay) {
-            let a = await initiate(amount, username, paymentform);
-            let order_id = a.order_id;
-            console.log("Username passed to payment:", username);  // Debug
             let response = await initiate(amount, username, paymentform);
+            let order_id = response.order_id;
             console.log("Order created:", response);
+    
             const options = {
-                key: process.env.NEXT_PUBLIC_RAZORPAY_KEY, // Corrected key usage
-                amount: amount * 100, // Convert to rupee
+                key: process.env.NEXT_PUBLIC_RAZORPAY_KEY,
+                amount: amount * 100,
                 currency: "INR",
                 name: "Get me a chai",
                 description: "Test Transaction",
                 image: "https://example.com/your_logo",
                 order_id: order_id,
-                callback_url: `${process.env.NEXT_PUBLIC_BASE_URL}/api/callback`,
+                callback_url: `${process.env.NEXT_PUBLIC_BASE_URL}/api/razorpay`,
                 prefill: {
                     name: paymentform.name,
                     email: "test@example.com",
@@ -57,11 +88,14 @@ const PaymentPage = ({ username }) => {
                     color: "#3399cc",
                 },
             };
-
+    
             const rzp1 = new window.Razorpay(options);
             rzp1.open();
+        } else {
+            console.error("Razorpay script not loaded yet.");
         }
     };
+    
 
     return (
         <>
@@ -104,15 +138,12 @@ const PaymentPage = ({ username }) => {
                 <div className="supporters flex flex-col justify-center bg-[rgba(30,41,59,.8)] rounded-lg items-center p-6">
                     <h1 className="text-white text-2xl font-bold">Support me</h1>
                     <ul className="flex flex-col gap-4 p-6 text-white text-lg">
-                        <li className="flex gap-2 justify-start items-center">
-                            <img height={30} width={30} src="/avatar.gif" alt="avatar" /> Aditya has Donated $100
+                        {payments.map((payment, index) => (
+                            <li key={index} className="flex gap-2 justify-start items-center">
+                            <img height={30} width={30} src="/avatar.gif" alt="avatar" /> {payment.name} Donated <span className="font-bold">{payment.amount} Rs.</span> with a message "{payment.message}"
                         </li>
-                        <li className="flex gap-2 justify-start items-center">
-                            <img height={30} width={30} src="/avatar.gif" alt="avatar" /> Subham has Donated $10
-                        </li>
-                        <li className="flex gap-2 justify-start items-center">
-                            <img height={30} width={30} src="/avatar.gif" alt="avatar" /> Pal has Donated $1
-                        </li>
+                        ))
+}
                     </ul>
                 </div>
 

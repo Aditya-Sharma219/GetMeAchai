@@ -6,6 +6,8 @@ import React, { useEffect } from "react";
 const Dashboard = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
+  console.log(session.user.name);
+  
 
   // Redirect to login if user is not authenticated
   useEffect(() => {
