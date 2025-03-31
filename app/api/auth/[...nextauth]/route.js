@@ -26,8 +26,10 @@ export const authoptions = NextAuth({
             username: profile.name 
               ? profile.name.replace(/\s+/g, '').toLowerCase() 
               : profile.login.toLowerCase(),
-            profilepic: profile.image || profile.avatar_url || '',
-            coverpic: '',
+            profilepic: profile.image || profile.avatar_url || "/default-avatar.png",
+            coverpic: "/default-cover.png",
+            keyId: "",
+            keySecret: "",
             createdAt: new Date(),
             updatedAt: new Date(),
           });

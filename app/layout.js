@@ -4,6 +4,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Script from "next/script";
 import SessionWrapper from "@/components/SessionWrapper";
+import { Inter } from "next/font/google";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

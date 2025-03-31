@@ -6,13 +6,17 @@ import Payment from "@/models/Payment";
 import { connectDB } from "@/lib/mongodb";
 
 export const initiate = async (amount, to_user, paymentform) => {
+    await connectDB();
+    const user = await User.findOne({ username: to_user })
+    const razrorpay_keySecret = user.keySecret
+    const razorpay_keyId = user.keyId
     if (!to_user) {
         throw new Error("to_user is required but missing");
     }
 
-    var instance = new Razorpay({ 
-        key_id: process.env.key_id, 
-        key_secret: process.env.key_secret 
+    var instance = new Razorpay({
+        key_id: razorpay_keyId,
+        key_secret: razrorpay_keySecret
     });
 
     let order = await instance.orders.create({
@@ -41,10 +45,21 @@ export const initiate = async (amount, to_user, paymentform) => {
 
     return { order_id: order.id };
 };
+export const getUserRazorpayKey = async (username) => {
+    try {
+        await connectDB();
+        // Check if username is provided
+        const user = await User.findOne({username : username}); // Fetch user details from DB
+        return user?.keyId || null; // Return keyId or null if not found
+    } catch (error) {
+        console.error("Error fetching Razorpay key:", error);
+        return null;
+    }
+};
 
 export const fetchuser = async (username) => {
     await connectDB();
-    let u = await User.findOne({ username: username }).lean();
+    let u = await User.findOne({ name: username }).lean();
 
     if (!u) return null;
 
@@ -59,8 +74,9 @@ export const fetchuser = async (username) => {
 
 export const fetchpayments = async (username) => {
     await connectDB();
-    let payments = await Payment.find({ to_user: username })
+    let payments = await Payment.find({ to_user: username, done: true })
         .sort({ amount: -1 })
+        .limit(7)
         .lean(); // ✅ Convert to plain objects
 
     // ✅ Convert MongoDB ObjectIDs to strings
@@ -72,4 +88,38 @@ export const fetchpayments = async (username) => {
     }));
 
     return formattedPayments;
+};
+
+
+export const updateProfile = async (oldusername, data) => {
+    await connectDB();
+
+    let ndata = { ...data };
+
+    // Fetch the user using old username
+    let user = await User.findOne({ name: oldusername });
+
+    if (!user) return "User not found";
+
+    // If username is changed, check if the new one already exists
+    if (ndata.username && oldusername !== ndata.username) {
+        let existingUser = await User.findOne({ username: ndata.username });
+        if (existingUser) return "Username already exists";
+    }
+
+    // Ensure email is included
+    ndata.email = user.email;
+
+    // Update the profile in the User model
+    await User.updateOne({ email: user.email }, { $set: ndata });
+
+    // Update the username in Payment records where the old username exists
+    if (ndata.username && oldusername !== ndata.username) {
+        await Payment.updateMany(
+            { username: oldusername }, // Find payments linked to the old username
+            { $set: { username: ndata.username } } // Update the username to the new one
+        );
+    }
+
+    return "Profile updated successfully";
 };

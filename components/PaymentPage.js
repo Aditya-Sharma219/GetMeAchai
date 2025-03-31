@@ -4,15 +4,42 @@ import Script from "next/script";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { initiate,fetchpayments,fetchuser } from "@/actions/useractions";
+import { initiate, fetchpayments, fetchuser } from "@/actions/useractions";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { useRouter } from "next/navigation";
+import { getUserRazorpayKey } from "@/actions/useractions";
 
 
 const PaymentPage = ({ username }) => {
+    console.log(username);
+
     const searchParams = useSearchParams();
     const { data: session } = useSession();
+    const router = useRouter();
     // const username = searchParams.get("username") || "User"; // Ensure username is defined
 
-    const [currentuser, setCurrentuser] = useState([]);
+    const paymentdone = searchParams.get("paymentdone");
+    useEffect(() => {
+        if (paymentdone) {
+            // Show toast immediately
+            toast.success("✅ Payment Successful!", {
+                position: "bottom-right",
+                autoClose: 3000, // Toast stays for 3 seconds
+                theme: "dark",
+                style: { background: "#2a2a2a", color: "#fff", borderRadius: "8px" },
+                progressStyle: { background: "#fff" },
+            });
+
+            // Redirect after 1 second
+            setTimeout(() => {
+                router.replace(`${username}`, undefined, { shallow: true });
+            }, 2500);
+        }
+    }, [paymentdone]);
+
+
+    const [currentuser, setCurrentuser] = useState({});
     const [payments, setPayments] = useState([]);
 
 
@@ -25,27 +52,27 @@ const PaymentPage = ({ username }) => {
             getData();
         }
     }, [session]);
-    
+
 
     const getData = async () => {
         if (!session?.user?.name) {
             console.error("Session user name is not defined");
             return;
         }
-        
+
         try {
             let u = await fetchuser(session.user.name);
             setCurrentuser(u || []); // Ensure it doesn't remain undefined
-            
+
             let dbpayments = await fetchpayments(username || "defaultUser");
             setPayments(dbpayments || []);
-            
+
             console.log(u, session.user.name, dbpayments);
         } catch (error) {
             console.error("Error fetching data:", error);
         }
     };
-    
+
 
     const [paymentform, setPaymentform] = useState({
         name: username,
@@ -58,22 +85,31 @@ const PaymentPage = ({ username }) => {
     const handleChange = (e) => {
         const { name, value } = e.target;
         setPaymentform({ ...paymentform, [name]: value });
-        console.log(paymentform, "hi");
+
     };
+
 
     const pay = async (amount) => {
         if (typeof window !== "undefined" && window.Razorpay) {
+            const userKeyId = await getUserRazorpayKey(username); // Get the user's keyId
+            console.log("User's Razorpay keyId:", userKeyId);
+
+            if (!userKeyId) {
+                console.error("User's Razorpay key not found.");
+                toast.error("Payment failed: You cannot make payment to this user because he is not in our database.");
+                return;
+            }
+
             let response = await initiate(amount, username, paymentform);
             let order_id = response.order_id;
-            console.log("Order created:", response);
-    
+
             const options = {
-                key: process.env.NEXT_PUBLIC_RAZORPAY_KEY,
+                key: userKeyId, // ✅ Use the user's key instead of process.env
                 amount: amount * 100,
                 currency: "INR",
-                name: "Get me a chai",
-                description: "Test Transaction",
-                image: "https://example.com/your_logo",
+                name: username, // Show the user's name on Razorpay checkout
+                description: "Support Payment",
+                image: "/logo.png",
                 order_id: order_id,
                 callback_url: `${process.env.NEXT_PUBLIC_BASE_URL}/api/razorpay`,
                 prefill: {
@@ -88,17 +124,17 @@ const PaymentPage = ({ username }) => {
                     color: "#3399cc",
                 },
             };
-    
+
             const rzp1 = new window.Razorpay(options);
             rzp1.open();
         } else {
             console.error("Razorpay script not loaded yet.");
         }
     };
-    
+
 
     return (
-        <>
+        <><ToastContainer />
             <Script
                 src="https://checkout.razorpay.com/v1/checkout.js"
                 strategy="lazyOnload"
@@ -107,8 +143,8 @@ const PaymentPage = ({ username }) => {
 
             <div className="cover relative p-60 h-[50vh] w-full bg-gray-800 text-white flex flex-col items-center justify-center">
                 <div className="img flex justify-center items-center">
-                    <Image
-                        src="https://c10.patreonusercontent.com/4/patreon-media/p/campaign/4515749/2a472b2eb38844669eb3e62370d89c26/eyJ3Ijo2MjAsIndlIjoxfQ%3D%3D/3.png?token-time=1743724800&token-hash=Ehwugf47Et8M9pI7jmO3-z43PwpsX95X6ZVlvqLqURM%3D"
+                    <img
+                        src={currentuser?.coverpic || "/default-cover.png"}
                         alt="coverpage"
                         width={620}
                         height={400}
@@ -117,13 +153,13 @@ const PaymentPage = ({ username }) => {
                 </div>
 
                 <div className="flex justify-center items-center">
-                    <Image
-                        className="border-black border-2 rounded-full absolute left-[50%] bottom-43 transform -translate-x-1/2"
-                        src="https://c10.patreonusercontent.com/4/patreon-media/p/campaign/4515749/f0d0c48eae424b1a9c1459eacc4ed27f/eyJoIjoxMDgwLCJ3IjoxMDgwfQ%3D%3D/1.png?token-time=1742428800&token-hash=tJ1qlLpqbwezcWMbTMVfx3vDeEIAiJI8Mc0aZwy22h4%3D"
+                    <img
+                        className="border-black border-2 rounded-full absolute left-[50%] bottom-48 transform -translate-x-1/2"
+                        src={currentuser?.profilepic || "/default-avatar.png"}
                         alt="mypic"
                         width={96}
                         height={96}
-                        priority
+
                     />
                 </div>
 
@@ -131,19 +167,25 @@ const PaymentPage = ({ username }) => {
                     <h1 className="text-4xl font-bold">{capitalize(username)}</h1>
                     <p className="text-lg text-slate-400">Entrepreneur</p>
                     <p className="text-lg text-slate-500">100M Followers • 100 Posts • $100,000,000/hr </p>
+                    <p className="text-lg text-slate-500">{payments.length} payments recieved  • Rs. {payments.reduce((a, b) => a + b.amount, 0)}</p>
                 </div>
             </div>
 
             <div className="payments min-h-[70vh] grid grid-cols-1 md:grid-cols-2 pt-12 gap-6 p-6">
                 <div className="supporters flex flex-col justify-center bg-[rgba(30,41,59,.8)] rounded-lg items-center p-6">
-                    <h1 className="text-white text-2xl font-bold">Support me</h1>
+                    <h1 className="text-white text-2xl font-bold">Top Supporters</h1>
                     <ul className="flex flex-col gap-4 p-6 text-white text-lg">
-                        {payments.map((payment, index) => (
-                            <li key={index} className="flex gap-2 justify-start items-center">
-                            <img height={30} width={30} src="/avatar.gif" alt="avatar" /> {payment.name} Donated <span className="font-bold">{payment.amount} Rs.</span> with a message "{payment.message}"
-                        </li>
-                        ))
-}
+                        {payments.length > 0 ? (
+                            payments.map((payment, index) => (
+                                <li key={index} className="flex gap-2 justify-start items-center">
+                                    <img height={30} width={30} src="/avatar.gif" alt="avatar" />
+                                    {payment.name} Donated <span className="font-bold">{payment.amount} Rs.</span> with a message "{payment.message}"
+                                </li>
+                            ))
+                        ) : (
+                            <li className="flex gap-2 justify-start items-center">No payments yet</li>
+                        )}
+
                     </ul>
                 </div>
 
