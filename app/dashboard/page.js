@@ -37,7 +37,7 @@ const Dashboard = () => {
 
   const getData = async () => {
     setLoading(true);
-    const user = await fetchuser(session.user.name);
+    const user = await fetchuser(session.user.email);
     if (user) {
       setFormData((prev) => ({
         ...prev,
@@ -54,12 +54,15 @@ const Dashboard = () => {
   };
 
   const handleChange = (e) => {
+    const { name, value } = e.target;
+
     setFormData((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value,
+      [name]: ["name", "username", "email"].includes(name)
+        ? value.toLowerCase()
+        : value,
     }));
   };
-
   const handleImageChange = (e, type) => {
     const file = e.target.files[0];
     if (file) {
@@ -78,7 +81,14 @@ const Dashboard = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const response = await updateProfile(session.user.name, formData);
+    const sanitizedData = {
+      ...formData,
+      name: formData.name.toLowerCase(),
+      username: formData.username.replace(/\s+/g, "").toLowerCase(),
+      email: formData.email.toLowerCase(),
+    };
+
+    const response = await updateProfile(session.user.email, sanitizedData);
     if (response === "Profile updated successfully") {
       toast.success("✅ Profile updated successfully!", {
         position: "bottom-right",
@@ -98,7 +108,7 @@ const Dashboard = () => {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen text-white p-20">
-      <ToastContainer/>
+      <ToastContainer />
       {session?.user && (
         <form
           onSubmit={handleSubmit}

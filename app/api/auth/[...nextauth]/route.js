@@ -1,6 +1,6 @@
-import NextAuth from 'next-auth';
-import GitHubProvider from 'next-auth/providers/github';
-import User from '@/models/User';
+import NextAuth from "next-auth";
+import GitHubProvider from "next-auth/providers/github";
+import User from "@/models/User";
 import { connectDB } from "@/lib/mongodb";
 
 export const authoptions = NextAuth({
@@ -10,23 +10,25 @@ export const authoptions = NextAuth({
       clientSecret: process.env.GITHUB_CLIENT_SECRET,
     }),
   ],
+
   callbacks: {
     async signIn({ user, account, profile }) {
-      console.log("GitHub Profile:", profile); // Debugging
-
-      if (account.provider === 'github') {
+      if (account.provider === "github") {
         await connectDB();
 
-        let currentUser = await User.findOne({ email: profile.email });
+        const email = profile.email?.toLowerCase();
+        const name = (profile.name || profile.login || "").toLowerCase();
+
+        let currentUser = await User.findOne({ email });
 
         if (!currentUser) {
           currentUser = await User.create({
-            name: profile.name || profile.login, // Use profile.login if name is missing
-            email: profile.email,
-            username: profile.name 
-              ? profile.name.replace(/\s+/g, '').toLowerCase() 
-              : profile.login.toLowerCase(),
-            profilepic: profile.image || profile.avatar_url || "/default-avatar.png",
+            name,
+            email,
+            username: name.replace(/\s+/g, ""),
+            profilepic:
+              (profile.image || profile.avatar_url || "/default-avatar.png")
+                .toLowerCase(),
             coverpic: "/default-cover.png",
             keyId: "",
             keySecret: "",
@@ -37,6 +39,7 @@ export const authoptions = NextAuth({
 
         return true;
       }
+
       return false;
     },
 
@@ -44,16 +47,19 @@ export const authoptions = NextAuth({
       if (!token.email) return session;
 
       await connectDB();
-      const dbuser = await User.findOne({ email: token.email });
+
+      const dbuser = await User.findOne({
+        email: token.email.toLowerCase(),
+      });
 
       if (dbuser) {
-        session.user.username = dbuser.username;
+        session.user.username = dbuser.username.toLowerCase();
         session.user.profilepic = dbuser.profilepic;
       }
 
       return session;
-    }
-  }
+    },
+  },
 });
 
 export { authoptions as GET, authoptions as POST };

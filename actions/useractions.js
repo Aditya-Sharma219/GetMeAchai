@@ -57,26 +57,25 @@ export const getUserRazorpayKey = async (username) => {
     }
 };
 
-export const fetchuser = async (username) => {
+export const fetchuser = async (email) => {
     await connectDB();
-    let u = await User.findOne({ name: username }).lean();
+
+    let u = await User.findOne({ email }).lean();
 
     if (!u) return null;
 
     return {
         ...u,
         _id: u._id.toString(),
-        createdAt: u.createdAt.toISOString(),
-        updatedAt: u.updatedAt.toISOString()
+        createdAt: u.createdAt?.toISOString(),
+        updatedAt: u.updatedAt?.toISOString()
     };
 };
-
 
 export const fetchpayments = async (username) => {
     await connectDB();
     let payments = await Payment.find({ to_user: username, done: true })
         .sort({ amount: -1 })
-        .limit(7)
         .lean(); // ✅ Convert to plain objects
 
     // ✅ Convert MongoDB ObjectIDs to strings
@@ -91,35 +90,42 @@ export const fetchpayments = async (username) => {
 };
 
 
-export const updateProfile = async (oldusername, data) => {
-    await connectDB();
+export const updateProfile = async (email, data) => {
+  await connectDB();
 
-    let ndata = { ...data };
+  const user = await User.findOne({ email });
 
-    // Fetch the user using old username
-    let user = await User.findOne({ name: oldusername });
+  if (!user) return "User not found";
 
-    if (!user) return "User not found";
+  // check username uniqueness
+  if (data.username && data.username !== user.username) {
+    const existingUser = await User.findOne({ username: data.username });
+    if (existingUser) return "Username already exists";
+  }
 
-    // If username is changed, check if the new one already exists
-    if (ndata.username && oldusername !== ndata.username) {
-        let existingUser = await User.findOne({ username: ndata.username });
-        if (existingUser) return "Username already exists";
+  const oldUsername = user.username;
+
+  await User.updateOne(
+    { email },
+    {
+      $set: {
+        name: data.name,
+        username: data.username,
+        keyId: data.keyId,
+        keySecret: data.keySecret,
+        profilepic: data.profilepic ?? user.profilepic,
+        coverpic: data.coverpic ?? user.coverpic
+      }
     }
+  );
 
-    // Ensure email is included
-    ndata.email = user.email;
+  // update username in payments if username changed
+  if (data.username && data.username !== oldUsername) {
+    await Payment.updateMany(
+      { to_user: oldUsername },
+      { $set: { to_user: data.username } }
+    );
+  }
 
-    // Update the profile in the User model
-    await User.updateOne({ email: user.email }, { $set: ndata });
-
-    // Update the username in Payment records where the old username exists
-    if (ndata.username && oldusername !== ndata.username) {
-        await Payment.updateMany(
-            { username: oldusername }, // Find payments linked to the old username
-            { $set: { username: ndata.username } } // Update the username to the new one
-        );
-    }
-
-    return "Profile updated successfully";
+  return "Profile updated successfully";
 };

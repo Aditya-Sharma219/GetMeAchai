@@ -13,7 +13,7 @@ import { getUserRazorpayKey } from "@/actions/useractions";
 
 const PaymentPage = ({ username }) => {
     console.log(username);
-
+    const normalizedUsername = username?.toLowerCase();
     const searchParams = useSearchParams();
     const { data: session } = useSession();
     const router = useRouter();
@@ -33,10 +33,10 @@ const PaymentPage = ({ username }) => {
 
             // Redirect after 1 second
             setTimeout(() => {
-                router.replace(`${username}`, undefined, { shallow: true });
+                router.replace(`${normalizedUsername}`, undefined, { shallow: true });
             }, 2500);
         }
-    }, [paymentdone]);
+    }, [paymentdone, normalizedUsername]);
 
 
     const [currentuser, setCurrentuser] = useState({});
@@ -61,10 +61,10 @@ const PaymentPage = ({ username }) => {
         }
 
         try {
-            let u = await fetchuser(session.user.name);
+            let u = await fetchuser(session.user.email);
             setCurrentuser(u || []); // Ensure it doesn't remain undefined
 
-            let dbpayments = await fetchpayments(username || "defaultUser");
+            let dbpayments = await fetchpayments(normalizedUsername || "defaultuser");
             setPayments(dbpayments || []);
 
             console.log(u, session.user.name, dbpayments);
@@ -75,7 +75,7 @@ const PaymentPage = ({ username }) => {
 
 
     const [paymentform, setPaymentform] = useState({
-        name: username,
+        name: username?.toLowerCase(),
         message: "I love your work",
         amount: 100, // Default amount
     });
@@ -84,14 +84,17 @@ const PaymentPage = ({ username }) => {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setPaymentform({ ...paymentform, [name]: value });
 
+        setPaymentform((prev) => ({
+            ...prev,
+            [name]: name === "name" ? value.toLowerCase() : value,
+        }));
     };
 
 
     const pay = async (amount) => {
         if (typeof window !== "undefined" && window.Razorpay) {
-            const userKeyId = await getUserRazorpayKey(username); // Get the user's keyId
+            const userKeyId = await getUserRazorpayKey(normalizedUsername); // Get the user's keyId
             console.log("User's Razorpay keyId:", userKeyId);
 
             if (!userKeyId) {
@@ -100,14 +103,14 @@ const PaymentPage = ({ username }) => {
                 return;
             }
 
-            let response = await initiate(amount, username, paymentform);
+            let response = await initiate(amount, normalizedUsername, paymentform);
             let order_id = response.order_id;
 
             const options = {
                 key: userKeyId, // ✅ Use the user's key instead of process.env
                 amount: amount * 100,
                 currency: "INR",
-                name: username, // Show the user's name on Razorpay checkout
+                name: capitalize(username), // Show the user's name on Razorpay checkout
                 description: "Support Payment",
                 image: "/logo.png",
                 order_id: order_id,
@@ -176,12 +179,15 @@ const PaymentPage = ({ username }) => {
                     <h1 className="text-white text-2xl font-bold">Top Supporters</h1>
                     <ul className="flex flex-col gap-4 p-6 text-white text-lg">
                         {payments.length > 0 ? (
-                            payments.map((payment, index) => (
-                                <li key={index} className="flex gap-2 justify-start items-center">
-                                    <img height={30} width={30} src="/avatar.gif" alt="avatar" />
-                                    {payment.name} Donated <span className="font-bold">{payment.amount} Rs.</span> with a message "{payment.message}"
-                                </li>
-                            ))
+                            payments
+                                .sort((a, b) => b.amount - a.amount) // highest donation first
+                                .slice(0, 7) // show only top 7
+                                .map((payment, index) => (
+                                    <li key={index} className="flex gap-2 justify-start items-center">
+                                        <img height={30} width={30} src="/avatar.gif" alt="avatar" />
+                                        {payment.name} Donated <span className="font-bold">{payment.amount} Rs.</span> with a message "{payment.message}"
+                                    </li>
+                                ))
                         ) : (
                             <li className="flex gap-2 justify-start items-center">No payments yet</li>
                         )}
