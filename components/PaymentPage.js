@@ -51,7 +51,7 @@ const PaymentPage = ({ username }) => {
         if (session?.user?.name) {
             getData();
         }
-    }, [session]);
+    }, [session,normalizedUsername]);
 
 
     const getData = async () => {
@@ -146,7 +146,7 @@ const PaymentPage = ({ username }) => {
 
             <div className="cover relative p-60 h-[50vh] w-full bg-gray-800 text-white flex flex-col items-center justify-center">
                 <div className="img flex justify-center items-center">
-                    <img
+                    <Image
                         src={currentuser?.coverpic || "/default-cover.png"}
                         alt="coverpage"
                         width={620}
@@ -156,7 +156,7 @@ const PaymentPage = ({ username }) => {
                 </div>
 
                 <div className="flex justify-center items-center">
-                    <img
+                    <Image
                         className="border-black border-2 rounded-full absolute left-[50%] bottom-48 transform -translate-x-1/2"
                         src={currentuser?.profilepic || "/default-avatar.png"}
                         alt="mypic"
@@ -184,9 +184,8 @@ const PaymentPage = ({ username }) => {
                                 .slice(0, 7) // show only top 7
                                 .map((payment, index) => (
                                     <li key={index} className="flex gap-2 justify-start items-center">
-                                        <img height={30} width={30} src="/avatar.gif" alt="avatar" />
-                                        {payment.name} Donated <span className="font-bold">{payment.amount} Rs.</span> with a message "{payment.message}"
-                                    </li>
+                                        <Image height={30} width={30} src="/avatar.gif" alt="avatar" />
+                                        {payment.name} Donated <span className="font-bold">{payment.amount} Rs.</span> with a message &quot;{payment.message}&quot;                                    </li>
                                 ))
                         ) : (
                             <li className="flex gap-2 justify-start items-center">No payments yet</li>
